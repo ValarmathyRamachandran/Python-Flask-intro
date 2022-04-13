@@ -46,14 +46,20 @@ def add_todo():
         return render_template('index.html', tasks=tasks)
 
 
-@app.route('/delete/id')
+@app.route('/delete/<string:id>')
 def delete(id):
-    task_to_delete = Todo.query.get_or_404(id)
+    myquery ={'id': id}
+    task_to_delete = mycol.delete_one(myquery)
+    print(task_to_delete)
+    return redirect('/')
 
 
-@app.route('/update/<id>', methods=['GET', 'POST'])
+@app.route('/update/<string:id>', methods=['PUT'])
 def update(id):
-    task = Todo.query.get_or_404(id)
+    task = mycol.get_or_404(id)
+    update_todo = request.form.get('content')
+    mycol.insert_one({'content': update_todo, 'date_created': datetime.now()})
+    return redirect(url_for('index'))
 
 
 if __name__ == "__main__":
