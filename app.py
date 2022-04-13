@@ -1,18 +1,21 @@
 import document as document
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, json, jsonify, url_for
 import pymongo
 from datetime import datetime
+
+from flask_pymongo import PyMongo
+from mongoengine import connect
 
 from mongoengine import IntField, StringField, Document
 
 app = Flask(__name__)
-uri = 'mongodb://127.0.0.1:27017/flask'
-client = pymongo.MongoClient(uri)
-db = client['flask']
+
+myclient = pymongo.MongoClient("mongodb://127.0.0.1:27017/")
+mydb = myclient["flask"]
+mycol = mydb["todos"]
 
 
 class Todo(Document):
-    query = None
     id = IntField
     content = StringField
     date_created = datetime.utcnow()
@@ -20,52 +23,37 @@ class Todo(Document):
     def __repr__(self):
         return '<Task %r>' % self.id
 
+    def to_json(self):
+        return {"id": self.id,
+                "content": self.content,
+                "date_created": self.date_created}
+
+
+@app.route('/')
+def index():
+    saved_todos = mycol.find()
+    return render_template('index.html', todos=saved_todos)
+
 
 @app.route('/', methods=['POST', 'GET'])
-def index():
+def add_todo():
     if request.method == 'POST':
-        task_content = request.form['content']
-        new_task = Todo(content=task_content)
-
-        try:
-            db.session.add(new_task)
-            db.session.commit()
-            return redirect('/')
-        except:
-            return 'There was an issue adding your task'
-
+        new_todo = request.form.get('content')
+        mycol.insert_one({'content': new_todo, 'date_created': datetime.now()})
+        return redirect(url_for('index'))
     else:
-        # tasks = Todo.query.order_by(Todo.date_created).all()
-        return render_template('index.html')
+        tasks = mycol.find()
+        return render_template('index.html', tasks=tasks)
 
 
-@app.route('/delete/<int:id>')
+@app.route('/delete/id')
 def delete(id):
     task_to_delete = Todo.query.get_or_404(id)
 
-    try:
-        db.session.delete(task_to_delete)
-        db.session.commit()
-        return redirect('/')
-    except:
-        return 'There was a problem deleting that task'
 
-
-@app.route('/update/<int:id>', methods=['GET', 'POST'])
+@app.route('/update/<id>', methods=['GET', 'POST'])
 def update(id):
     task = Todo.query.get_or_404(id)
-
-    if request.method == 'POST':
-        task.content = request.form['content']
-
-        try:
-            db.session.commit()
-            return redirect('/')
-        except:
-            return 'There was an issue updating your task'
-
-    else:
-        return render_template('update.html', task=task)
 
 
 if __name__ == "__main__":
